@@ -10,6 +10,7 @@ python = ">3.9,<3.9.7 || >3.9.7,<3.11"
 fastapi = "^0.110.0"
 uvicorn = "^0.29.0"
 openai = "^1.14.2"
+minio = "^7.2.5"
 
 
 [build-system]

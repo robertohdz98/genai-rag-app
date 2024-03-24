@@ -2,8 +2,9 @@
 import os
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import RedirectResponse
+from minio import Minio
 from openai import OpenAI
 
 app = FastAPI()
@@ -13,6 +14,25 @@ app = FastAPI()
 def redirect():
     """ Redirects response to Swagger UI."""
     return RedirectResponse("/docs")
+
+
+@app.post("/get_cv/{cv_s3_url}")
+async def get_uploaded_cv(cv_s3_url: str):
+    """ Reads a CV."""
+
+    ACCESS_KEY = os.getenv('MINIO_ROOT_USER', 'minio')
+    SECRET_KEY = os.getenv('MINIO_ROOT_PASSWORD', 'minio123')
+    s3_client = Minio(
+        "host.docker.internal:9000",
+        access_key=ACCESS_KEY,
+        secret_key=SECRET_KEY,
+        secure=False
+    )
+
+    bucket, filename = cv_s3_url.split("/")
+    cv = s3_client.get_object(bucket, filename)
+
+    return cv.read()
 
 
 @app.post("/question")
