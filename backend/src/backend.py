@@ -1,13 +1,33 @@
 """ Backend API specification."""
+import logging
 import os
+from pydantic import BaseModel
 
+import pytesseract
 import uvicorn
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
-from minio import Minio
-from openai import OpenAI
+from minio import Minio, S3Error
+from langchain_openai.chat_models import ChatOpenAI
+from langchain_core.output_parsers import StrOutputParser
+from langchain.prompts import ChatPromptTemplate
+from pdf2image import convert_from_path
 
-app = FastAPI()
+
+# FastAPI main configuration
+app = FastAPI(
+    title="My CV Chatbot API"
+)
+
+
+class Question(BaseModel):
+    """ Quote from the user to be answered by MyCVChatbot."""
+    question: str
+
+
+class Context(BaseModel):
+    """ Context to be used to answer the quotes from the user."""
+    cv_name: str
 
 
 @app.get("/")
@@ -16,56 +36,116 @@ def redirect():
     return RedirectResponse("/docs")
 
 
-@app.post("/get_cv/{cv_s3_url}")
-async def get_uploaded_cv(cv_s3_url: str):
-    """ Reads a CV."""
+@app.post("/read_cv")
+async def read_uploaded_cv(cv_filename: str):
+    """ Reads a CV using Tesseract OCR."""
 
-    ACCESS_KEY = os.getenv('MINIO_ROOT_USER', 'minio')
-    SECRET_KEY = os.getenv('MINIO_ROOT_PASSWORD', 'minio123')
+    # Initialize S3 client
     s3_client = Minio(
-        "host.docker.internal:9000",
+        endpoint=S3_ENDPOINT,
         access_key=ACCESS_KEY,
         secret_key=SECRET_KEY,
         secure=False
     )
 
-    bucket, filename = cv_s3_url.split("/")
-    cv = s3_client.get_object(bucket, filename)
+    # Download PDF file from S3
+    try:
+        bucket = "cvs"
+        s3_client.fget_object(
+            bucket_name=bucket,
+            object_name=cv_filename,
+            file_path=f"/tmp/{cv_filename}")
+        logging.info("[%s] loaded.", cv_filename)
 
-    return cv.read()
+    except S3Error as exc:
+        print(exc)
+        raise HTTPException(
+            status_code=404,
+            detail=f"[{cv_filename}] not found in [{bucket}] bucket."
+        ) from exc
+
+    # OCR: read cv content
+    cv_pages = convert_from_path(f"/tmp/{cv_filename}")
+
+    cv_content = []
+    for page in cv_pages:
+        text = pytesseract.image_to_string(page)
+        cv_content.append(text)
+
+    # Store cv content as txt file
+    cv_name = cv_filename.split(".")[0]
+    output_cv_text = f"{cv_name}.txt"
+    with open(output_cv_text, "w", encoding="utf-8") as f:
+        for page in cv_content:
+            f.write(page)
+    print("[%s] content read using OCR.", cv_filename)
+    logging.info("[%s] content read using OCR.", cv_filename)
+
+    return "ok"
 
 
-@app.post("/question")
-def answer_question(question: dict):
-    """ Answers provided question using GPT 3.5"""
+@app.post("/ask_chatbot")
+def answer_question(
+    question: Question,
+    context_cv: Context,
+    model: str = "gpt-3.5-turbo-0125"
+):
+    """ Answers provided question based on context using GPT models."""
 
-    # vectorize question
+    model = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model=model)
 
-    # ask chatgpt with context
-    context = "You are a HR consultant, skilled in extracting useful \
-        information from a provided curriculum."
+    template = """ You are an HR consultant, skilled in extracting useful
+        information from a provided curriculum. Answer the question based only
+        on the provided context below. If you cannot find any information
+        related so you cannot answer it, just reply 'I do not know'.
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
+        Context: {context}
+        Question: {question}
+    """
 
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo-0125",
-        messages=[
-            {"role": "system",
-             "content": context},
-            {"role": "user",
-             "content": question["question"]}
-        ]
-    )
+    # Build our chain
+    parser = StrOutputParser()
+    prompt = ChatPromptTemplate.from_template(template)
+    chain = prompt | model | parser
 
-    # return back question
-    answer = response.choices[0].message.content
+    context_cv_content = context_cv.cv_name + ".txt"
+    with open(context_cv_content, "r", encoding="utf-8") as f:
+        context = f.read()
 
-    print("question:", question["question"])
-    print("answer:", answer)
+    answer = chain.invoke({
+        "context": context,
+        "question": question.question
+    })
 
     return answer
 
+    # vectorize question
+    # ask chatgpt with context
+    #context = "You are an HR consultant, skilled in extracting useful \
+    #    information from a provided curriculum."
+    # client = OpenAI(api_key=OPENAI_API_KEY)
+    # response = client.chat.completions.create(
+    #     model=model,
+    #     messages=[
+    #         {"role": "system",
+    #          "content": context},
+    #         {"role": "user",
+    #          "content": question["question"]}
+    #     ]
+    # )
+    # # return back question
+    # answer = response.choices[0].message.content
+
+    # print("question:", question["question"])
+    # print("answer:", answer)
+
 
 if __name__ == "__main__":
+
+    # Get environment variables
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    S3_ENDPOINT = "host.docker.internal:9000"  # TODO: as env var
+    ACCESS_KEY = os.getenv("MINIO_ROOT_USER")
+    SECRET_KEY = os.getenv("MINIO_ROOT_PASSWORD")
+
     uvicorn.run(app)

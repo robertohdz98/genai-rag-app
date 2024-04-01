@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "rag-module"
 version = "0.1.0"
-description = ""
+description = "Backend API and RAG basic module"
 authors = ["Roberto Hernandez <betohr60@gmail.com>"]
 readme = "README.md"
 
@@ -9,9 +9,16 @@ readme = "README.md"
 python = ">3.9,<3.9.7 || >3.9.7,<3.11"
 fastapi = "^0.110.0"
 uvicorn = "^0.29.0"
-openai = "^1.14.2"
 minio = "^7.2.5"
+pdf2image = "^1.17.0"
+pytesseract = "^0.3.10"
+langchain = "^0.1.13"
+langchain-openai = "^0.1.1"
 
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.3"
+python-dotenv = "^1.0.1"
 
 [build-system]
 requires = ["poetry-core"]
