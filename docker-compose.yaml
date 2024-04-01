@@ -9,9 +9,12 @@ services:
       context: ./frontend
       dockerfile: ../frontend/app.Dockerfile
     ports:
-      - 8081:8501
-    #environment:
-    #  - APP_PORT=$APP_PORT
+      - 8501:8501
+    environment:
+      - MINIO_ROOT_USER=$MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
+      - S3_ENDPOINT=s3-storage:9000
+      - API_ENDPOINT=backend:8000
 
   backend:
     container_name: app-backend
@@ -21,8 +24,11 @@ services:
       dockerfile: ../backend/api.Dockerfile
     ports:
       - 8000:8000
-    #environment:
-    #  - name=value
+    environment:
+      - MINIO_ROOT_USER=$MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD=$MINIO_ROOT_PASSWORD
+      - S3_ENDPOINT=s3-storage:9000
+      - OPENAI_API_KEY=$OPENAI_API_KEY
 
   s3-storage:
     container_name: s3-storage

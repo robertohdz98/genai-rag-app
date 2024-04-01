@@ -9,8 +9,8 @@ from minio import Minio
 from src.utils import ask_chatbot
 
 # Get environment variables
-API_ENDPOINT = "host.docker.internal:8000"  # TODO: as env var
-S3_ENDPOINT = "host.docker.internal:9000"  # TODO: as env var
+API_ENDPOINT = os.getenv("API_ENDPOINT")
+S3_ENDPOINT = os.getenv("S3_ENDPOINT")
 ACCESS_KEY = os.getenv("MINIO_ROOT_USER")
 SECRET_KEY = os.getenv("MINIO_ROOT_PASSWORD")
 

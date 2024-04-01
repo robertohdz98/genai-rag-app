@@ -124,8 +124,8 @@ if __name__ == "__main__":
 
     # Get environment variables
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    S3_ENDPOINT = "host.docker.internal:9000"  # TODO: as env var
+    S3_ENDPOINT = os.getenv("S3_ENDPOINT")
     ACCESS_KEY = os.getenv("MINIO_ROOT_USER")
     SECRET_KEY = os.getenv("MINIO_ROOT_PASSWORD")
 
-    uvicorn.run(app)
+    uvicorn.run(app, host="0.0.0.0")
