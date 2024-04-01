@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "frontend"
 version = "0.1.0"
-description = ""
+description = "Frontend app for chatbot demo"
 authors = ["Roberto Hernandez <betohr60@gmail.com>"]
 readme = "README.md"
 package-mode = false
