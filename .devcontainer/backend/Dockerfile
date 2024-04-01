@@ -1,7 +1,7 @@
 FROM python:3.10-slim-bullseye
 
 RUN apt-get update --fix-missing
-RUN apt-get install -y make curl vim wget
+RUN apt-get install -y curl vim wget poppler-utils tesseract-ocr
 
 ENV HOMEDIR=/app
 RUN mkdir -p $HOMEDIR
