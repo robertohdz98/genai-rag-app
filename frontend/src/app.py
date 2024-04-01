@@ -6,6 +6,8 @@ import requests
 import streamlit as st
 from minio import Minio
 
+from src.utils import ask_chatbot
+
 # Get environment variables
 API_ENDPOINT = "host.docker.internal:8000"  # TODO: as env var
 S3_ENDPOINT = "host.docker.internal:9000"  # TODO: as env var
@@ -26,6 +28,19 @@ st.title("Ask about your CV! :briefcase: :page_with_curl:")
 st.header("Upload a CV and then you could ask information \
         about it directly without checking the entire resume.")
 
+
+@st.cache_data(show_spinner=False)
+def read_cv(cv):
+    """ Caches operation of reading and processing uploaded CV."""
+    cv_name = cv.name.split(".")[0]
+    response = requests.post(
+        url=f"http://{API_ENDPOINT}/read_cv?cv_filename={cv.name}",
+        timeout=2000
+    )
+
+    return response.status_code, cv_name
+
+
 # CV PDF uploader
 uploaded_cv = st.file_uploader(
     label="Upload your CV here. Only PDF formats are allowed.",
@@ -34,15 +49,11 @@ uploaded_cv = st.file_uploader(
 
 if uploaded_cv:
 
-    @st.cache_data  # FIXME: cache cv upload when user asks
-    def upload_cv():
-        uploaded_file = uploaded_cv
-        return uploaded_file
-
+    # Store uploaded CV file in S3 storage
     with st.spinner("Uploading CV..."):
         with open(uploaded_cv.name, "wb") as f:
             f.write(uploaded_cv.getbuffer())
-        # Upload CV in S3 storage bucket
+
         s3_client = Minio(
             endpoint=S3_ENDPOINT,
             access_key=ACCESS_KEY,
@@ -50,42 +61,39 @@ if uploaded_cv:
             secure=False
         )
         s3_client.fput_object("cvs", uploaded_cv.name, uploaded_cv.name)
-    st.success("CV uploaded successfully.")
+        st.success("CV uploaded successfully.")
 
+    # In the background, initialize OCR process and CV processing
     with st.spinner("Reading CV. Please wait..."):
-        # In the background, initialize OCR process and cv reading
-        cv_filename = uploaded_cv.name.split(".")[0]
-        response = requests.post(
-            url=f"http://{API_ENDPOINT}/read_cv?cv_filename={uploaded_cv.name}",
-            timeout=2000
-        )
-    st.success("CV read successfully.")
+        status_code, cv_filename = read_cv(uploaded_cv)
+        if status_code == 200:
+            st.success("CV read successfully.")
+        else:
+            st.error("CV could not be read. Please try uploading it again")
 
-st.text("")
+    st.text("")
 
-model = st.selectbox("GPT model",
-                     ("gpt-3.5-turbo-0125", "gpt-3.5-turbo"))
+    # GPT model selector
+    model = st.selectbox("GPT model", ("gpt-3.5-turbo-0125", "gpt-3.5-turbo"))
 
-st.text("")
+    st.text("")
 
-user_question = st.text_area("What do you want to know?")
-ask_button = st.button("Ask CV Chatbot")
+    # User interaction area: make a question
+    user_question = st.text_area("What do you want to know?")
+    ask_button = st.button("Ask Your CV Chatbot!")
 
-if ask_button:
-    uploaded_cv = upload_cv() # FIXME: cache cv upload when user asks
-    if len(user_question) > 0:
-        question = {"question": user_question}
-        cv_name = {"cv_name": cv_filename}
+    if ask_button:
+        _, cv_filename = read_cv(uploaded_cv)
 
-        response = requests.post(
-            url=f"http://{API_ENDPOINT}/ask_chatbot",
-            json={"question": question,
-                  "context_cv": cv_name,
-                  "model": model},
-            timeout=200
-        )
+        if len(user_question) > 0:
+            answer = ask_chatbot(
+                question=user_question,
+                cv_name=cv_filename,
+                model=model,
+                endpoint=API_ENDPOINT
+            )
 
-        st.text_area("Response", response.text)
+            st.text_area("Response", answer)
 
-    else:
-        st.write(":warning:  Please, make a quote")
+        else:
+            st.write(":warning:  Please, make a question")
