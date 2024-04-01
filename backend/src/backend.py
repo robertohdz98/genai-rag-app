@@ -78,7 +78,7 @@ async def read_uploaded_cv(cv_filename: str):
     with open(output_cv_text, "w", encoding="utf-8") as f:
         for page in cv_content:
             f.write(page)
-    print("[%s] content read using OCR.", cv_filename)
+    print(f"[{cv_filename}] content read using OCR.")
     logging.info("[%s] content read using OCR.", cv_filename)
 
     return "ok"
@@ -118,26 +118,6 @@ def answer_question(
     })
 
     return answer
-
-    # vectorize question
-    # ask chatgpt with context
-    #context = "You are an HR consultant, skilled in extracting useful \
-    #    information from a provided curriculum."
-    # client = OpenAI(api_key=OPENAI_API_KEY)
-    # response = client.chat.completions.create(
-    #     model=model,
-    #     messages=[
-    #         {"role": "system",
-    #          "content": context},
-    #         {"role": "user",
-    #          "content": question["question"]}
-    #     ]
-    # )
-    # # return back question
-    # answer = response.choices[0].message.content
-
-    # print("question:", question["question"])
-    # print("answer:", answer)
 
 
 if __name__ == "__main__":
